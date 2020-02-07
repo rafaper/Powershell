@@ -1,0 +1,77 @@
+﻿#
+# Script.ps1
+#
+Connect-AzAccount
+$sub =  Get-AzSubscription
+$subId = (($sub).SubscriptionId | Select -First 1).toString()
+Get-AzResourceGroup
+Write-Host "Enter Resource Group Name to list existing VMs:" -ForegroundColor Green
+$myRG = Read-Host
+Get-AzVM -ResourceGroupName $myRG
+
+Write-Host "Enter name of VM you would like to edit?" -ForegroundColor Green
+Write-Host "Please note adding/removing NICs will require VM to be shut down." -ForegroundColor Red
+$myVm = Read-Host
+$myVmObj = Get-AzVM -ResourceGroupName $myRG -Name $myVm
+Stop-AzVM -ResourceGroupName $myRG -Name $myVm
+
+Write-Host "Enter the name of the Virtual Network associated with the VM:" -ForegroundColor Green
+$myVnet = Read-Host
+$myVnetObj = Get-AzVirtualNetwork -Name $myVnet -ResourceGroupName $myRG
+
+Write-Host "Enter the name of the Subnet Backend associated with the VM:" -ForegroundColor Green
+$mySubBackend = Read-Host
+$mySubBackendObj = $myVnetObj.Subnets|?{$_.Name -eq $mySubBackend}
+
+$bool = "true"
+
+
+
+While($bool -eq "true"){
+
+Write-Host "Would you like to [A]dd or [R]emove NICs?" -ForegroundColor Green 
+$answer = Read-Host
+Switch($answer.ToUpper())
+{
+    A {
+        Write-Host "Please name the new NIC:"
+        $newNICinput = Read-Host
+		Write-Host "Please enter the location for the new NIC (use lower-case and no spaces):"
+		$newNICLocation = Read-Host
+		Write-Host "Please enter the Network Security Group name:"
+		$newNICnsg = Read-Host
+		$newNICnsgId = (Get-AzNetworkSecurityGroup -ResourceGroupName $myRG -Name $newNICnsg).Id
+		$newNIC = New-AzNetworkInterface -Name $newNICinput -ResourceGroupName $myRG -Location $newNICLocation -SubnetId $mySubBackendObj.Id -NetworkSecurityGroupId $newNICnsgId
+        $newNicId = (Get-AzNetworkInterface -ResourceGroupName $myRG -Name $newNICinput).Id
+		$myVmObj = Add-AzVMNetworkInterface -VM $myVmObj -Id $newNicId -Primary
+		Update-AzVm -ResourceGroupName $myRG -VM $myVmObj
+        Write-Host "Action Complete" -ForegroundColor Green
+      }
+    
+    R{
+        Get-AzNetworkInterface
+        Write-Host "Enter the name of the NIC you would like to remove:" -ForegroundColor Green
+        $removeNICinput = Read-Host
+		$removeNIC = (Get-AzNetworkInterface -ResourceGroupName $myRG -Name $removeNICinput).Id
+        Remove-AzVMNetworkInterface -VM $myVmObj -NetworkInterfaceIDs $removeNIC
+		Update-AzVm -ResourceGroupName $myRG -VM $myVmObj
+		Write-Host "Action Complete" -ForegroundColor Green
+     }
+}
+
+
+
+Write-Host "Would you like to peform another action? [y/n]" -ForegroundColor Green
+$continue = Read-Host
+
+if($continue -eq "y")
+{
+$bool = "true"
+}
+else{
+$bool = "false"
+}
+}
+
+#Start-AzVM -ResourceGroupName $myRG -Name $myVm
+

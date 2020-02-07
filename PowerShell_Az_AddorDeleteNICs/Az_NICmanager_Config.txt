@@ -1,0 +1,4 @@
+Resource Group = 
+Virtual Machine = 
+Vnet = 
+Subnet Backend = 
